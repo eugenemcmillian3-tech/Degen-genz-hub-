@@ -1,0 +1,173 @@
+'use client';
+
+import { useState } from 'react';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
+import { OPENROUTER_MODELS } from '@/types/app';
+import { Copy, Share2, Search } from 'lucide-react';
+import { AIOutputDisplay } from './ai-output-display';
+
+interface AIGeneratorModalProps {
+  open: boolean;
+  onClose: () => void;
+  featureType: string;
+  userId: string;
+  paymentId: string;
+}
+
+export function AIGeneratorModal({ open, onClose, featureType, userId, paymentId }: AIGeneratorModalProps): JSX.Element {
+  const [model, setModel] = useState<string>(OPENROUTER_MODELS[0]);
+  const [prompt, setPrompt] = useState<string>('');
+  const [output, setOutput] = useState<string>('');
+  const [loading, setLoading] = useState<boolean>(false);
+  const [useWebScraping, setUseWebScraping] = useState<boolean>(false);
+  const [scraping, setScraping] = useState<boolean>(false);
+
+  const handleGenerate = async (): Promise<void> => {
+    if (!prompt) {
+      alert('Please enter a prompt');
+      return;
+    }
+
+    setLoading(true);
+    let enhancedPrompt = prompt;
+
+    try {
+      // If web scraping is enabled for viral scout, scrape first
+      if (useWebScraping && (featureType === 'viral_scout' || featureType === 'narrative_report')) {
+        setScraping(true);
+        const scrapeRes = await fetch('/api/scrape/viral-scout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: prompt, mode: 'search' }),
+        });
+
+        if (scrapeRes.ok) {
+          const scrapeData = await scrapeRes.json();
+          if (scrapeData.scrapedData) {
+            enhancedPrompt = `${prompt}\n\nRecent web data:\n${scrapeData.scrapedData}`;
+          }
+        }
+        setScraping(false);
+      }
+
+      const response = await fetch('/api/ai/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId,
+          paymentId,
+          featureType,
+          model,
+          userPrompt: enhancedPrompt,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setOutput(data.output);
+      } else {
+        const error = await response.json();
+        alert(error.error || 'AI generation failed');
+      }
+    } catch (error) {
+      console.error('AI generation error:', error);
+      alert('Generation failed');
+    } finally {
+      setLoading(false);
+      setScraping(false);
+    }
+  };
+
+  const handleCopy = async (): Promise<void> => {
+    await navigator.clipboard.writeText(output);
+    alert('Copied to clipboard!');
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="bg-gray-900 text-white border-purple-500/30 max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>AI Generation</DialogTitle>
+          <DialogDescription className="text-gray-400">
+            Generate your content using AI
+          </DialogDescription>
+        </DialogHeader>
+
+        {!output ? (
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="model">Select AI Model</Label>
+              <Select value={model} onValueChange={setModel}>
+                <SelectTrigger className="bg-gray-800 border-gray-700">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-gray-800 border-gray-700 max-h-60">
+                  {OPENROUTER_MODELS.map((m) => (
+                    <SelectItem key={m} value={m}>
+                      {m.split('/')[1].split(':')[0]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {(featureType === 'viral_scout' || featureType === 'narrative_report') && (
+              <div className="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg border border-gray-700">
+                <div className="flex items-center gap-2">
+                  <Search className="w-4 h-4 text-purple-400" />
+                  <Label htmlFor="web-scraping" className="text-sm cursor-pointer">
+                    Use Live Web Data
+                  </Label>
+                </div>
+                <Switch
+                  id="web-scraping"
+                  checked={useWebScraping}
+                  onCheckedChange={setUseWebScraping}
+                />
+              </div>
+            )}
+
+            <div>
+              <Label htmlFor="prompt">Your Prompt</Label>
+              <Textarea
+                id="prompt"
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                placeholder={useWebScraping ? "Enter topic to research (e.g., 'trending memecoins on Base')" : "Describe what you want to generate..."}
+                rows={6}
+                className="bg-gray-800 border-gray-700"
+              />
+            </div>
+
+            <Button
+              onClick={handleGenerate}
+              disabled={loading || scraping}
+              className="w-full bg-purple-600 hover:bg-purple-700"
+            >
+              {scraping ? 'Scraping Web Data...' : loading ? 'Generating...' : 'Generate Content'}
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <AIOutputDisplay output={output} featureType={featureType} />
+            <Button
+              onClick={() => {
+                setOutput('');
+                setPrompt('');
+              }}
+              variant="outline"
+              className="w-full border-gray-700 hover:bg-gray-800"
+            >
+              Generate New
+            </Button>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}

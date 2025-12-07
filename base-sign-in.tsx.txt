@@ -1,0 +1,79 @@
+'use client';
+
+import { SignInWithBaseButton } from '@base-org/account-ui/react';
+import { useState, useEffect } from 'react';
+import { Sparkles } from 'lucide-react';
+
+interface BaseSignInProps {
+  onSignIn?: (address: string) => void;
+  align?: 'center' | 'left' | 'right';
+  variant?: 'solid' | 'outline';
+  colorScheme?: 'light' | 'dark';
+}
+
+export function BaseSignIn({
+  onSignIn,
+  align = 'center',
+  variant = 'solid',
+  colorScheme = 'light',
+}: BaseSignInProps): JSX.Element {
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  const handleSignIn = async (): Promise<void> => {
+    console.log('User clicked Base sign in');
+    
+    try {
+      // Check if Base Account is available
+      if (typeof window !== 'undefined' && (window as any).baseAccount) {
+        const baseAccount = (window as any).baseAccount;
+        
+        // Get the user's Base address
+        const address = await baseAccount.getAddress();
+        console.log('Base address:', address);
+        
+        if (address && onSignIn) {
+          onSignIn(address);
+        }
+
+        // Optionally call your backend to register the user
+        const response = await fetch('/api/auth/base-signin', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ address }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          console.log('Base sign-in successful:', data);
+        }
+      } else {
+        console.warn('Base Account not available. Make sure you are in a Base Builder context.');
+      }
+    } catch (error) {
+      console.error('Base sign-in error:', error);
+    }
+  };
+
+  // Only render on client side to prevent hydration errors
+  if (!isClient) {
+    return (
+      <div className="flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg">
+        <Sparkles className="w-5 h-5 animate-pulse" />
+        <span>Loading Base Sign In...</span>
+      </div>
+    );
+  }
+
+  return (
+    <SignInWithBaseButton 
+      align={align}
+      variant={variant}
+      colorScheme={colorScheme}
+      onClick={handleSignIn}
+    />
+  );
+}

@@ -1,0 +1,56 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { isBasePayAvailable, getBaseAddress } from '@/lib/base-pay';
+
+interface UseBasePayReturn {
+  isAvailable: boolean;
+  address: string | null;
+  loading: boolean;
+}
+
+/**
+ * Hook to check Base Pay availability and get user address
+ */
+export function useBasePay(): UseBasePayReturn {
+  const [isAvailable, setIsAvailable] = useState<boolean>(false);
+  const [address, setAddress] = useState<string | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+
+  useEffect(() => {
+    async function checkBasePay(): Promise<void> {
+      try {
+        // Check availability
+        const available = isBasePayAvailable();
+        setIsAvailable(available);
+
+        // Get address if available
+        if (available) {
+          const addr = await getBaseAddress();
+          setAddress(addr);
+        }
+      } catch (error) {
+        console.error('Base Pay check error:', error);
+        setIsAvailable(false);
+        setAddress(null);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    // Check on mount and when window.baseAccount changes
+    checkBasePay();
+
+    // Recheck every 2 seconds for Base Pay availability
+    const interval = setInterval(() => {
+      if (typeof window !== 'undefined' && window.baseAccount) {
+        const available = isBasePayAvailable();
+        setIsAvailable(available);
+      }
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  return { isAvailable, address, loading };
+}

@@ -1,0 +1,200 @@
+'use client';
+
+import { useState } from 'react';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { SUPPORTED_CHAINS } from '@/types/app';
+import { BasePayButton } from '@/components/base-pay-button';
+
+interface PaymentModalProps {
+  open: boolean;
+  onClose: () => void;
+  featureType: string;
+  priceUsd: number;
+  userId: string;
+  onPaymentComplete: (paymentId: string) => void;
+}
+
+const OWNER_WALLETS: Record<string, string> = {
+  Base: '0xcc9569bF1d87B7a18BD3363413b823AaF06084d3',
+  Solana: 'BWYezHCzL6SUbqumfqtZAfcZ7krxJ8xSqLDhSQMUx4C7',
+  BSC: '0xcc9569bF1d87B7a18BD3363413b823AaF06084d3',
+  Ethereum: '0xcc9569bF1d87B7a18BD3363413b823AaF06084d3',
+  Arbitrum: '0xcc9569bF1d87B7a18BD3363413b823AaF06084d3',
+  Monad: '0xcc9569bF1d87B7a18BD3363413b823AaF06084d3',
+  HyperEVM: '0xcc9569bF1d87B7a18BD3363413b823AaF06084d3',
+  Celo: '0xcc9569bF1d87B7a18BD3363413b823AaF06084d3',
+};
+
+export function PaymentModal({ open, onClose, featureType, priceUsd, userId, onPaymentComplete }: PaymentModalProps): JSX.Element {
+  const [chain, setChain] = useState<string>('Base');
+  const [txHash, setTxHash] = useState<string>('');
+  const [tokenSymbol, setTokenSymbol] = useState<string>('USDC');
+  const [amount, setAmount] = useState<string>('');
+  const [loading, setLoading] = useState<boolean>(false);
+
+  const handleSubmit = async (): Promise<void> => {
+    if (!txHash || !tokenSymbol || !amount) {
+      alert('Please fill in all fields');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch('/api/payments/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId,
+          chain,
+          txHash,
+          tokenSymbol,
+          amount,
+          usdEquiv: priceUsd,
+          featureType,
+        }),
+      });
+
+      if (response.ok) {
+        const { payment } = await response.json();
+        onPaymentComplete(payment.id);
+        onClose();
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Payment creation failed');
+      }
+    } catch (error) {
+      console.error('Payment error:', error);
+      alert('Payment submission failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const selectedWallet = OWNER_WALLETS[chain as keyof typeof OWNER_WALLETS];
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="bg-gray-900 text-white border-purple-500/30 max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Complete Payment</DialogTitle>
+          <DialogDescription className="text-gray-400">
+            Choose your payment method below
+          </DialogDescription>
+        </DialogHeader>
+        
+        <Tabs defaultValue="base-pay" className="w-full">
+          <TabsList className="grid w-full grid-cols-2 bg-gray-800">
+            <TabsTrigger value="base-pay" className="data-[state=active]:bg-blue-600">
+              Base Pay (Recommended)
+            </TabsTrigger>
+            <TabsTrigger value="manual" className="data-[state=active]:bg-purple-600">
+              Manual Payment
+            </TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="base-pay" className="space-y-4 mt-4">
+            <div className="p-4 bg-gray-800/50 rounded-lg border border-blue-500/30">
+              <h4 className="font-semibold mb-2 flex items-center gap-2">
+                <span>⚡</span>
+                Quick Payment with Base Builder
+              </h4>
+              <p className="text-sm text-gray-400 mb-4">
+                One-click payment if you're using this app in a Base Builder context.
+                No need to manually enter transaction details.
+              </p>
+              <BasePayButton
+                featureType={featureType}
+                priceUsd={priceUsd}
+                userId={userId}
+                onPaymentComplete={onPaymentComplete}
+                disabled={loading}
+              />
+            </div>
+            
+            <div className="text-center text-sm text-gray-500">
+              Not working? Try the <strong>Manual Payment</strong> tab
+            </div>
+          </TabsContent>
+          
+          <TabsContent value="manual" className="space-y-4 mt-4">
+            <div className="p-3 bg-yellow-900/20 rounded-lg border border-yellow-500/30 mb-4">
+              <p className="text-sm text-yellow-400">
+                💡 Manual payment requires you to send crypto and paste the transaction hash
+              </p>
+            </div>
+            <div className="space-y-4">
+          <div>
+            <Label htmlFor="chain">Select Chain</Label>
+            <Select value={chain} onValueChange={setChain}>
+              <SelectTrigger className="bg-gray-800 border-gray-700">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-gray-800 border-gray-700">
+                {SUPPORTED_CHAINS.map((c) => (
+                  <SelectItem key={c} value={c}>
+                    {c}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <Label>Payment Address</Label>
+            <div className="p-3 bg-gray-800 rounded-lg border border-gray-700 text-sm break-all">
+              {selectedWallet}
+            </div>
+          </div>
+
+          <div>
+            <Label htmlFor="token">Token Symbol</Label>
+            <Input
+              id="token"
+              value={tokenSymbol}
+              onChange={(e) => setTokenSymbol(e.target.value)}
+              placeholder="USDC, ETH, etc."
+              className="bg-gray-800 border-gray-700"
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="amount">Amount Sent</Label>
+            <Input
+              id="amount"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="Amount in tokens"
+              className="bg-gray-800 border-gray-700"
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="txHash">Transaction Hash</Label>
+            <Input
+              id="txHash"
+              value={txHash}
+              onChange={(e) => setTxHash(e.target.value)}
+              placeholder="0x..."
+              className="bg-gray-800 border-gray-700"
+            />
+          </div>
+
+          <Button 
+            onClick={handleSubmit} 
+            disabled={loading}
+            className="w-full bg-purple-600 hover:bg-purple-700"
+          >
+            {loading ? 'Processing...' : 'Confirm Payment'}
+          </Button>
+            </div>
+          </TabsContent>
+        </Tabs>
+      </DialogContent>
+    </Dialog>
+  );
+}

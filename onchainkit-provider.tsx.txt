@@ -1,0 +1,65 @@
+'use client';
+
+import { OnchainKitProvider } from '@coinbase/onchainkit';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { WagmiProvider, createConfig, http } from 'wagmi';
+import { base, baseSepolia } from 'wagmi/chains';
+import { coinbaseWallet } from 'wagmi/connectors';
+import type { ReactNode } from 'react';
+import { useState } from 'react';
+
+interface OnchainProvidersProps {
+  children: ReactNode;
+}
+
+/**
+ * Complete OnchainKit + Wagmi Provider Setup
+ * Enables wallet connections, Base network interactions, and OnchainKit features
+ */
+export function OnchainProviders({ children }: OnchainProvidersProps): JSX.Element {
+  const [queryClient] = useState(() => new QueryClient());
+
+  // Determine which chain to use based on environment
+  const activeChain = process.env.NEXT_PUBLIC_BASE_CHAIN === 'base-sepolia' ? baseSepolia : base;
+
+  // Wagmi configuration for Base network
+  const wagmiConfig = createConfig({
+    chains: [base, baseSepolia],
+    connectors: [
+      coinbaseWallet({
+        appName: 'DEGENZ GEN/Z HUB',
+        appLogoUrl: 'https://degenz-hub.vercel.app/icon-192.png',
+        preference: 'smartWalletOnly', // Prioritize smart wallets (no seed phrases)
+      }),
+    ],
+    transports: {
+      [base.id]: http(),
+      [baseSepolia.id]: http(),
+    },
+    ssr: true,
+  });
+
+  // OnchainKit API key (optional but recommended for better performance)
+  const apiKey = process.env.NEXT_PUBLIC_ONCHAINKIT_API_KEY;
+
+  return (
+    <WagmiProvider config={wagmiConfig}>
+      <QueryClientProvider client={queryClient}>
+        <OnchainKitProvider
+          apiKey={apiKey}
+          chain={activeChain}
+          config={{
+            appearance: {
+              name: 'DEGENZ HUB',
+              logo: 'https://degenz-hub.vercel.app/icon-192.png',
+              mode: 'auto',
+              theme: 'default',
+            },
+          }}
+        >
+          {children}
+        </OnchainKitProvider>
+      </QueryClientProvider>
+    </WagmiProvider>
+  );
+}

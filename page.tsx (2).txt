@@ -1,0 +1,329 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useFarcasterAuth } from '@/hooks/use-farcaster-auth';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  ArrowLeft,
+  Sparkles,
+  DollarSign,
+  Trophy,
+  Package,
+  Activity,
+} from 'lucide-react';
+import Link from 'next/link';
+
+interface ProfileData {
+  user: {
+    fid: number;
+    username: string | null;
+    created_at: string;
+  } | null;
+  stats: {
+    totalSpent: number;
+    totalEarned: number;
+    aiJobsCount: number;
+    contestsCreated: number;
+    contestsEntered: number;
+    memePacksCreated: number;
+  };
+  recentActivity: {
+    aiJobs: Array<{
+      id: string;
+      feature_type: string;
+      model_used: string;
+      price_usd: number;
+      created_at: string;
+    }>;
+    payments: Array<{
+      id: string;
+      chain: string;
+      usd_equiv: number;
+      feature_type: string;
+      created_at: string;
+    }>;
+    memePacks: Array<{
+      id: string;
+      category: string;
+      title: string;
+      created_at: string;
+    }>;
+    contestEntries: Array<{
+      id: string;
+      content: string;
+      created_at: string;
+      contest: { title: string; status: string } | null;
+      votes: Array<{ count: number }>;
+    }>;
+  };
+  referralCode: string | null;
+}
+
+export default function ProfilePage(): JSX.Element {
+  const { userId, user, loading } = useFarcasterAuth();
+  const [profileData, setProfileData] = useState<ProfileData | null>(null);
+  const [loadingProfile, setLoadingProfile] = useState<boolean>(true);
+
+  useEffect(() => {
+    if (userId) {
+      loadProfile();
+    }
+  }, [userId]);
+
+  const loadProfile = async (): Promise<void> => {
+    try {
+      const res = await fetch(`/api/user/profile?userId=${userId}`);
+      const data = await res.json();
+      setProfileData(data);
+    } catch (error) {
+      console.error('Failed to load profile:', error);
+    } finally {
+      setLoadingProfile(false);
+    }
+  };
+
+  if (loading || loadingProfile) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-black flex items-center justify-center">
+        <p className="text-white">Loading profile...</p>
+      </div>
+    );
+  }
+
+  if (!profileData) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-black flex items-center justify-center">
+        <p className="text-white">Failed to load profile</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-black pt-16 pb-12 px-4">
+      <div className="max-w-6xl mx-auto">
+        <div className="mb-6">
+          <Link href="/">
+            <Button variant="ghost" className="text-white hover:bg-purple-800/50">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to Home
+            </Button>
+          </Link>
+        </div>
+
+        <header className="text-center mb-12">
+          <h1 className="text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400 mb-4">
+            {user?.displayName || user?.username || `FID ${user?.fid}`}
+          </h1>
+          <p className="text-gray-300 text-lg">
+            Member since {new Date(profileData.user?.created_at || '').toLocaleDateString()}
+          </p>
+          {profileData.referralCode && (
+            <Badge className="mt-4 bg-purple-600 text-lg px-4 py-2">
+              Referral Code: {profileData.referralCode}
+            </Badge>
+          )}
+        </header>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+          <Card className="bg-gray-900/50 border-purple-500/30">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm text-gray-400">Total Spent</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-2xl font-bold text-red-400">
+                ${profileData.stats.totalSpent.toFixed(2)}
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gray-900/50 border-purple-500/30">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm text-gray-400">Total Earned</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-2xl font-bold text-green-400">
+                ${profileData.stats.totalEarned.toFixed(2)}
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gray-900/50 border-purple-500/30">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm text-gray-400">AI Jobs</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-2xl font-bold text-purple-400">{profileData.stats.aiJobsCount}</p>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gray-900/50 border-purple-500/30">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm text-gray-400">Contests</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-2xl font-bold text-yellow-400">
+                {profileData.stats.contestsEntered}
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+
+        <Tabs defaultValue="activity" className="w-full">
+          <TabsList className="grid w-full grid-cols-4 bg-gray-900/50 border border-purple-500/30">
+            <TabsTrigger value="activity" className="data-[state=active]:bg-purple-600">
+              <Activity className="w-4 h-4 mr-2" />
+              Activity
+            </TabsTrigger>
+            <TabsTrigger value="ai" className="data-[state=active]:bg-purple-600">
+              <Sparkles className="w-4 h-4 mr-2" />
+              AI Jobs
+            </TabsTrigger>
+            <TabsTrigger value="contests" className="data-[state=active]:bg-purple-600">
+              <Trophy className="w-4 h-4 mr-2" />
+              Contests
+            </TabsTrigger>
+            <TabsTrigger value="packs" className="data-[state=active]:bg-purple-600">
+              <Package className="w-4 h-4 mr-2" />
+              Meme Packs
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="activity" className="mt-6">
+            <Card className="bg-gray-900/50 border-purple-500/30">
+              <CardHeader>
+                <CardTitle className="text-white">Recent Payments</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {profileData.recentActivity.payments.length === 0 ? (
+                  <p className="text-gray-400 text-center py-8">No payments yet</p>
+                ) : (
+                  <div className="space-y-3">
+                    {profileData.recentActivity.payments.map((payment) => (
+                      <div
+                        key={payment.id}
+                        className="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg"
+                      >
+                        <div>
+                          <p className="text-white font-semibold">{payment.feature_type}</p>
+                          <p className="text-gray-400 text-sm">
+                            {payment.chain} • {new Date(payment.created_at).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <p className="text-green-400 font-bold">${payment.usd_equiv.toFixed(2)}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="ai" className="mt-6">
+            <Card className="bg-gray-900/50 border-purple-500/30">
+              <CardHeader>
+                <CardTitle className="text-white">AI Generation History</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {profileData.recentActivity.aiJobs.length === 0 ? (
+                  <p className="text-gray-400 text-center py-8">No AI jobs yet</p>
+                ) : (
+                  <div className="space-y-3">
+                    {profileData.recentActivity.aiJobs.map((job) => (
+                      <div
+                        key={job.id}
+                        className="p-3 bg-gray-800/50 rounded-lg border border-gray-700"
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <Badge className="bg-purple-600">{job.feature_type}</Badge>
+                          <p className="text-gray-400 text-sm">
+                            ${job.price_usd.toFixed(2)}
+                          </p>
+                        </div>
+                        <p className="text-gray-400 text-sm">
+                          Model: {job.model_used.split('/')[1]?.split(':')[0]}
+                        </p>
+                        <p className="text-gray-500 text-xs mt-1">
+                          {new Date(job.created_at).toLocaleString()}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="contests" className="mt-6">
+            <Card className="bg-gray-900/50 border-purple-500/30">
+              <CardHeader>
+                <CardTitle className="text-white">Contest Entries</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {profileData.recentActivity.contestEntries.length === 0 ? (
+                  <p className="text-gray-400 text-center py-8">No contest entries yet</p>
+                ) : (
+                  <div className="space-y-3">
+                    {profileData.recentActivity.contestEntries.map((entry) => (
+                      <div
+                        key={entry.id}
+                        className="p-3 bg-gray-800/50 rounded-lg border border-gray-700"
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-white font-semibold">
+                            {entry.contest?.title || 'Unknown Contest'}
+                          </p>
+                          <Badge variant={entry.contest?.status === 'active' ? 'default' : 'secondary'}>
+                            {entry.votes?.[0]?.count || 0} votes
+                          </Badge>
+                        </div>
+                        <p className="text-gray-400 text-sm line-clamp-2">{entry.content}</p>
+                        <p className="text-gray-500 text-xs mt-1">
+                          {new Date(entry.created_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="packs" className="mt-6">
+            <Card className="bg-gray-900/50 border-purple-500/30">
+              <CardHeader>
+                <CardTitle className="text-white">Meme Packs Created</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {profileData.recentActivity.memePacks.length === 0 ? (
+                  <p className="text-gray-400 text-center py-8">No meme packs yet</p>
+                ) : (
+                  <div className="space-y-3">
+                    {profileData.recentActivity.memePacks.map((pack) => (
+                      <div
+                        key={pack.id}
+                        className="p-3 bg-gray-800/50 rounded-lg border border-gray-700"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <Badge className="bg-pink-600 mb-2">{pack.category}</Badge>
+                            <p className="text-white font-semibold">{pack.title}</p>
+                            <p className="text-gray-500 text-xs mt-1">
+                              {new Date(pack.created_at).toLocaleDateString()}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </div>
+    </div>
+  );
+}

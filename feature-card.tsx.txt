@@ -1,0 +1,40 @@
+'use client';
+
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { LucideIcon } from 'lucide-react';
+
+interface FeatureCardProps {
+  icon: LucideIcon;
+  title: string;
+  description: string;
+  priceRange: string;
+  onClick: () => void;
+}
+
+export function FeatureCard({ icon: Icon, title, description, priceRange, onClick }: FeatureCardProps): JSX.Element {
+  return (
+    <Card className="bg-gradient-to-br from-purple-900/50 to-pink-900/50 border-purple-500/30 hover:border-purple-500 transition-all">
+      <CardHeader>
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-purple-500/20 rounded-lg">
+            <Icon className="w-6 h-6 text-purple-300" />
+          </div>
+          <CardTitle className="text-white">{title}</CardTitle>
+        </div>
+        <CardDescription className="text-gray-300">{description}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-purple-300 font-semibold">{priceRange}</span>
+          <Button 
+            onClick={onClick}
+            className="bg-purple-600 hover:bg-purple-700 text-white"
+          >
+            Launch
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}

@@ -1,0 +1,125 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useFarcasterAuth } from '@/hooks/use-farcaster-auth';
+import { useBaseAuth } from '@/hooks/use-base-auth';
+import { BaseSignIn } from '@/components/base-sign-in';
+import { Button } from '@/components/ui/button';
+import { Sparkles, Wallet, LogOut } from 'lucide-react';
+
+interface UnifiedUser {
+  id: string;
+  displayName: string;
+  address?: string;
+  fid?: number;
+  pfpUrl?: string;
+  source: 'farcaster' | 'base' | 'demo';
+}
+
+export function UnifiedAuth(): JSX.Element {
+  const { user: farcasterUser, loading: farcasterLoading, userId: farcasterUserId } = useFarcasterAuth();
+  const { baseUser, loading: baseLoading } = useBaseAuth();
+  const [unifiedUser, setUnifiedUser] = useState<UnifiedUser | null>(null);
+  const [showAuthOptions, setShowAuthOptions] = useState<boolean>(false);
+
+  // Combine auth states
+  useEffect(() => {
+    if (farcasterUser && farcasterUserId) {
+      setUnifiedUser({
+        id: farcasterUserId,
+        displayName: farcasterUser.displayName || farcasterUser.username || `FID ${farcasterUser.fid}`,
+        fid: farcasterUser.fid,
+        pfpUrl: farcasterUser.pfpUrl,
+        source: 'farcaster',
+      });
+    } else if (baseUser) {
+      setUnifiedUser({
+        id: baseUser.address,
+        displayName: `${baseUser.address.slice(0, 6)}...${baseUser.address.slice(-4)}`,
+        address: baseUser.address,
+        source: 'base',
+      });
+    }
+  }, [farcasterUser, farcasterUserId, baseUser]);
+
+  const handleBaseSignIn = async (address: string): Promise<void> => {
+    console.log('Base sign-in completed:', address);
+    setShowAuthOptions(false);
+    // Refresh the page to update auth state
+    window.location.reload();
+  };
+
+  if (farcasterLoading || baseLoading) {
+    return (
+      <div className="flex items-center gap-2 px-4 py-2 bg-purple-900/30 rounded-lg border border-purple-500/30">
+        <Sparkles className="w-5 h-5 text-purple-400 animate-pulse" />
+        <span className="text-white text-sm">Connecting...</span>
+      </div>
+    );
+  }
+
+  if (unifiedUser) {
+    return (
+      <div className="flex items-center gap-3 bg-purple-900/30 px-4 py-2 rounded-lg border border-purple-500/30">
+        {unifiedUser.pfpUrl && (
+          <img src={unifiedUser.pfpUrl} alt="Profile" className="w-8 h-8 rounded-full" />
+        )}
+        {!unifiedUser.pfpUrl && unifiedUser.source === 'base' && (
+          <Wallet className="w-6 h-6 text-purple-400" />
+        )}
+        <div className="flex flex-col">
+          <span className="text-white text-sm font-semibold">{unifiedUser.displayName}</span>
+          <span className="text-gray-400 text-xs">
+            {unifiedUser.source === 'farcaster' ? 'Farcaster' : 'Base Builder'}
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  // Show auth options
+  return (
+    <div className="flex flex-col gap-4">
+      {!showAuthOptions ? (
+        <Button
+          onClick={() => setShowAuthOptions(true)}
+          className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold"
+        >
+          <Sparkles className="w-5 h-5 mr-2" />
+          Connect Account
+        </Button>
+      ) : (
+        <div className="flex flex-col gap-3 p-4 bg-purple-900/30 rounded-lg border border-purple-500/30">
+          <h3 className="text-white font-semibold mb-2">Choose Sign In Method</h3>
+          
+          {/* Base Sign In */}
+          <div className="flex flex-col gap-2">
+            <p className="text-gray-400 text-sm">Base Builder Account:</p>
+            <BaseSignIn
+              onSignIn={handleBaseSignIn}
+              align="center"
+              variant="solid"
+              colorScheme="light"
+            />
+          </div>
+
+          {/* Manual Farcaster (if needed) */}
+          <div className="flex flex-col gap-2 mt-2">
+            <p className="text-gray-400 text-sm">Or use Farcaster Mini-App context</p>
+            <p className="text-gray-500 text-xs">
+              (Automatic if you're viewing this in a Farcaster app)
+            </p>
+          </div>
+
+          <Button
+            variant="ghost"
+            onClick={() => setShowAuthOptions(false)}
+            className="text-gray-400 hover:text-white mt-2"
+          >
+            Cancel
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}

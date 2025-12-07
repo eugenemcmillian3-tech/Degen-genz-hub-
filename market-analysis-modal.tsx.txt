@@ -1,0 +1,181 @@
+'use client';
+
+import { useState } from 'react';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { BarChart3, TrendingUp, TrendingDown } from 'lucide-react';
+
+interface MarketAnalysisModalProps {
+  open: boolean;
+  onClose: () => void;
+  userId: string;
+  paymentId: string;
+}
+
+interface MarketData {
+  markets: Array<{
+    id: string;
+    question: string;
+    platform: string;
+    probability: number;
+    volume: number;
+    trend: string;
+  }>;
+  summary: string;
+}
+
+export function MarketAnalysisModal({ open, onClose, userId, paymentId }: MarketAnalysisModalProps): JSX.Element {
+  const [query, setQuery] = useState<string>('');
+  const [platform, setPlatform] = useState<string>('all');
+  const [loading, setLoading] = useState<boolean>(false);
+  const [result, setResult] = useState<MarketData | null>(null);
+
+  const handleAnalyze = async (): Promise<void> => {
+    if (!query) {
+      alert('Please enter a search query');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const response = await fetch('/api/market/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId,
+          paymentId,
+          query,
+          platform: platform === 'all' ? undefined : platform,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setResult(data);
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Market analysis failed');
+      }
+    } catch (error) {
+      console.error('Market analysis error:', error);
+      alert('Analysis failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="bg-gray-900 text-white border-purple-500/30 max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Market Analysis - Adjacent News</DialogTitle>
+          <DialogDescription className="text-gray-400">
+            Analyze prediction markets and trading sentiment
+          </DialogDescription>
+        </DialogHeader>
+
+        {!result ? (
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="query">Search Query</Label>
+              <Input
+                id="query"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="e.g., Bitcoin price, Trump election, AI regulation"
+                className="bg-gray-800 border-gray-700"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="platform">Platform Filter</Label>
+              <Select value={platform} onValueChange={setPlatform}>
+                <SelectTrigger className="bg-gray-800 border-gray-700">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-gray-800 border-gray-700">
+                  <SelectItem value="all">All Platforms</SelectItem>
+                  <SelectItem value="polymarket">Polymarket</SelectItem>
+                  <SelectItem value="manifold">Manifold</SelectItem>
+                  <SelectItem value="metaculus">Metaculus</SelectItem>
+                  <SelectItem value="kalshi">Kalshi</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <Button
+              onClick={handleAnalyze}
+              disabled={loading || !query}
+              className="w-full bg-purple-600 hover:bg-purple-700"
+            >
+              {loading ? 'Analyzing Markets...' : 'Analyze Markets'}
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="bg-gray-800/50 rounded-lg p-4">
+              <h3 className="text-lg font-semibold text-white mb-2">Analysis Summary</h3>
+              <p className="text-gray-300 text-sm">{result.summary}</p>
+            </div>
+
+            <div className="space-y-3">
+              <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                <BarChart3 className="w-5 h-5 text-purple-400" />
+                Top Markets ({result.markets.length})
+              </h3>
+              
+              {result.markets.map((market, idx) => (
+                <div key={idx} className="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex-1">
+                      <p className="text-white font-medium">{market.question}</p>
+                      <p className="text-gray-400 text-sm mt-1">{market.platform}</p>
+                    </div>
+                    {market.trend === 'up' ? (
+                      <TrendingUp className="w-5 h-5 text-green-400" />
+                    ) : (
+                      <TrendingDown className="w-5 h-5 text-red-400" />
+                    )}
+                  </div>
+                  <div className="flex items-center gap-4 mt-3">
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between text-xs text-gray-400 mb-1">
+                        <span>Probability</span>
+                        <span>{market.probability}%</span>
+                      </div>
+                      <div className="w-full bg-gray-700 rounded-full h-2">
+                        <div
+                          className="bg-purple-500 h-2 rounded-full"
+                          style={{ width: `${market.probability}%` }}
+                        />
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-gray-400">Volume</p>
+                      <p className="text-white font-semibold">${market.volume.toLocaleString()}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <Button
+              onClick={() => {
+                setResult(null);
+                setQuery('');
+              }}
+              variant="outline"
+              className="w-full border-gray-700 hover:bg-gray-800"
+            >
+              New Analysis
+            </Button>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}

@@ -1,0 +1,108 @@
+'use client';
+
+import { useState } from 'react';
+import { useAccount, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
+import { parseEther, type Address } from 'viem';
+
+interface SendTransactionParams {
+  to: Address;
+  value: string; // Amount in ETH as string
+  data?: `0x${string}`;
+}
+
+interface TransactionResult {
+  hash?: `0x${string}`;
+  success: boolean;
+  error?: string;
+}
+
+/**
+ * Hook for sending Base transactions
+ */
+export function useBaseTransaction() {
+  const { address, isConnected } = useAccount();
+  const { writeContractAsync } = useWriteContract();
+  const [isPending, setIsPending] = useState(false);
+  const [txHash, setTxHash] = useState<`0x${string}` | undefined>();
+
+  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({
+    hash: txHash,
+  });
+
+  /**
+   * Send ETH transaction on Base
+   */
+  const sendTransaction = async (params: SendTransactionParams): Promise<TransactionResult> => {
+    if (!isConnected || !address) {
+      return {
+        success: false,
+        error: 'Wallet not connected',
+      };
+    }
+
+    setIsPending(true);
+
+    try {
+      // For simple ETH transfers, we can use sendTransaction
+      // Note: This is a simplified version. For production, use proper transaction building
+      const valueInWei = parseEther(params.value);
+
+      // Mock transaction (replace with actual contract call or sendTransaction)
+      // const hash = await sendTransactionAsync({
+      //   to: params.to,
+      //   value: valueInWei,
+      //   data: params.data,
+      // });
+
+      // For now, we'll return a mock hash
+      // TODO: Implement actual transaction sending
+      console.log('Sending transaction:', {
+        to: params.to,
+        value: params.value,
+        data: params.data,
+      });
+
+      const mockHash = `0x${Date.now().toString(16).padStart(64, '0')}` as `0x${string}`;
+      setTxHash(mockHash);
+
+      return {
+        hash: mockHash,
+        success: true,
+      };
+    } catch (error) {
+      console.error('Transaction error:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Transaction failed',
+      };
+    } finally {
+      setIsPending(false);
+    }
+  };
+
+  return {
+    sendTransaction,
+    isPending,
+    isConfirming,
+    isConfirmed,
+    txHash,
+    address,
+    isConnected,
+  };
+}
+
+/**
+ * Hook for verifying transaction on Base
+ */
+export function useVerifyTransaction(txHash: `0x${string}` | undefined) {
+  const { isLoading, isSuccess, isError, data } = useWaitForTransactionReceipt({
+    hash: txHash,
+  });
+
+  return {
+    isVerifying: isLoading,
+    isVerified: isSuccess,
+    isFailed: isError,
+    receipt: data,
+  };
+}

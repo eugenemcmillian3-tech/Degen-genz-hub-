@@ -1,0 +1,132 @@
+'use client';
+
+import { useState } from 'react';
+import { useAccount } from 'wagmi';
+import { Button } from '../ui/button';
+import { Loader2, Wallet, Check } from 'lucide-react';
+import { useBaseTransaction } from '@/hooks/use-base-transaction';
+import type { Address } from 'viem';
+import { trackEvent } from '@/lib/analytics';
+
+interface OnchainPaymentButtonProps {
+  amount: number; // Amount in USD
+  recipientAddress: string;
+  featureType: string;
+  onSuccess?: (txHash: string) => void;
+  onError?: (error: string) => void;
+}
+
+/**
+ * Onchain Payment Button
+ * Uses Wagmi/OnchainKit for direct Base payments
+ */
+export function OnchainPaymentButton({
+  amount,
+  recipientAddress,
+  featureType,
+  onSuccess,
+  onError,
+}: OnchainPaymentButtonProps): JSX.Element {
+  const { address, isConnected } = useAccount();
+  const { sendTransaction, isPending, isConfirming, isConfirmed, txHash } = useBaseTransaction();
+  const [error, setError] = useState<string | null>(null);
+
+  const handlePayment = async (): Promise<void> => {
+    if (!isConnected) {
+      const err = 'Please connect your wallet first';
+      setError(err);
+      onError?.(err);
+      return;
+    }
+
+    try {
+      setError(null);
+
+      // Track payment initiation
+      trackEvent('payment_initiated', {
+        method: 'onchain',
+        amount,
+        feature: featureType,
+      });
+
+      // Convert USD to ETH (simplified - in production, use real-time price feed)
+      const ethPrice = 3000; // Mock ETH price
+      const ethAmount = (amount / ethPrice).toFixed(6);
+
+      // Send transaction
+      const result = await sendTransaction({
+        to: recipientAddress as Address,
+        value: ethAmount,
+      });
+
+      if (result.success && result.hash) {
+        trackEvent('payment_completed', {
+          method: 'onchain',
+          amount,
+          feature: featureType,
+          txHash: result.hash,
+        });
+
+        onSuccess?.(result.hash);
+      } else {
+        const err = result.error || 'Transaction failed';
+        setError(err);
+        onError?.(err);
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Payment failed';
+      setError(errorMessage);
+      onError?.(errorMessage);
+    }
+  };
+
+  if (isConfirmed && txHash) {
+    return (
+      <Button disabled className="w-full bg-green-600">
+        <Check className="w-4 h-4 mr-2" />
+        Payment Confirmed
+      </Button>
+    );
+  }
+
+  if (isConfirming) {
+    return (
+      <Button disabled className="w-full">
+        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+        Confirming Transaction...
+      </Button>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <Button
+        onClick={handlePayment}
+        disabled={isPending || !isConnected}
+        className="w-full"
+      >
+        {isPending ? (
+          <>
+            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            Processing...
+          </>
+        ) : (
+          <>
+            <Wallet className="w-4 h-4 mr-2" />
+            Pay ${amount} with Wallet
+          </>
+        )}
+      </Button>
+
+      {error && (
+        <p className="text-sm text-red-600 text-center">{error}</p>
+      )}
+
+      {!isConnected && (
+        <p className="text-xs text-gray-500 text-center">
+          Connect your Coinbase Wallet to pay
+        </p>
+      )}
+    </div>
+  );
+}

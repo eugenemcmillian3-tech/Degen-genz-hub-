@@ -1,0 +1,58 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+
+interface BaseUser {
+  address: string;
+  isBaseBuilder: boolean;
+}
+
+export function useBaseAuth(): {
+  baseUser: BaseUser | null;
+  loading: boolean;
+  error: string | null;
+  signOut: () => void;
+} {
+  const [baseUser, setBaseUser] = useState<BaseUser | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const checkBaseAuth = async (): Promise<void> => {
+      try {
+        // Check if Base Account is available
+        if (typeof window !== 'undefined' && (window as any).baseAccount) {
+          const baseAccount = (window as any).baseAccount;
+          
+          // Try to get the current address
+          try {
+            const address = await baseAccount.getAddress();
+            
+            if (address) {
+              setBaseUser({
+                address,
+                isBaseBuilder: true,
+              });
+            }
+          } catch (err) {
+            console.log('Base account not connected yet');
+          }
+        }
+      } catch (err) {
+        console.error('Base auth check error:', err);
+        setError(err instanceof Error ? err.message : 'Base auth error');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    checkBaseAuth();
+  }, []);
+
+  const signOut = (): void => {
+    setBaseUser(null);
+    // Clear any local storage or session data if needed
+  };
+
+  return { baseUser, loading, error, signOut };
+}

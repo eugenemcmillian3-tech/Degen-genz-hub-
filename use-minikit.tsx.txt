@@ -1,0 +1,127 @@
+'use client';
+
+import { useContext, createContext, useEffect, useState, type ReactNode } from 'react';
+
+/**
+ * MiniKit Context Types
+ */
+interface MiniKitUser {
+  fid: number;
+  username?: string;
+  displayName?: string;
+  pfpUrl?: string;
+}
+
+interface MiniKitContext {
+  isInMiniApp: boolean;
+  user: MiniKitUser | null;
+  loading: boolean;
+}
+
+const MiniKitContext = createContext<MiniKitContext>({
+  isInMiniApp: false,
+  user: null,
+  loading: true,
+});
+
+/**
+ * MiniKit Provider
+ * Detects Farcaster Mini App context and provides user info
+ */
+export function MiniKitProvider({ children }: { children: ReactNode }): JSX.Element {
+  const [context, setContext] = useState<MiniKitContext>({
+    isInMiniApp: false,
+    user: null,
+    loading: true,
+  });
+
+  useEffect(() => {
+    // Check if running in Farcaster Mini App context
+    const checkMiniAppContext = async (): Promise<void> => {
+      try {
+        // Method 1: Check for Farcaster SDK
+        if (typeof window !== 'undefined') {
+          const sdk = (window as any).sdk;
+          
+          if (sdk && typeof sdk.context === 'object') {
+            // We're in a Farcaster Mini App
+            const user = sdk.context.user;
+            setContext({
+              isInMiniApp: true,
+              user: user ? {
+                fid: user.fid,
+                username: user.username,
+                displayName: user.displayName,
+                pfpUrl: user.pfpUrl,
+              } : null,
+              loading: false,
+            });
+            return;
+          }
+
+          // Method 2: Check for Base MiniKit
+          // (Base MiniKit may expose context differently)
+          const baseContext = (window as any).minikit?.context;
+          if (baseContext) {
+            setContext({
+              isInMiniApp: true,
+              user: baseContext.user || null,
+              loading: false,
+            });
+            return;
+          }
+        }
+
+        // Not in Mini App context
+        setContext({
+          isInMiniApp: false,
+          user: null,
+          loading: false,
+        });
+      } catch (error) {
+        console.error('Error detecting Mini App context:', error);
+        setContext({
+          isInMiniApp: false,
+          user: null,
+          loading: false,
+        });
+      }
+    };
+
+    // Check immediately
+    checkMiniAppContext();
+
+    // Re-check after SDK might load
+    const timeout = setTimeout(checkMiniAppContext, 1000);
+    return () => clearTimeout(timeout);
+  }, []);
+
+  return (
+    <MiniKitContext.Provider value={context}>
+      {children}
+    </MiniKitContext.Provider>
+  );
+}
+
+/**
+ * Hook to access MiniKit context
+ */
+export function useMiniKit(): MiniKitContext {
+  return useContext(MiniKitContext);
+}
+
+/**
+ * Hook to check if app is in Farcaster Mini App context
+ */
+export function useIsInMiniApp(): boolean {
+  const { isInMiniApp } = useMiniKit();
+  return isInMiniApp;
+}
+
+/**
+ * Hook to get Mini App user
+ */
+export function useMiniKitUser(): MiniKitUser | null {
+  const { user } = useMiniKit();
+  return user;
+}

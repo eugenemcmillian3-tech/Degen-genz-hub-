@@ -1,0 +1,16 @@
+import { generateStructuredData } from '@/lib/seo';
+
+interface StructuredDataProps {
+  type?: 'Organization' | 'WebSite' | 'WebApplication';
+}
+
+export function StructuredData({ type = 'WebApplication' }: StructuredDataProps): JSX.Element {
+  const structuredData = generateStructuredData(type);
+
+  return (
+    <script
+      type="application/ld+json"
+      dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+    />
+  );
+}

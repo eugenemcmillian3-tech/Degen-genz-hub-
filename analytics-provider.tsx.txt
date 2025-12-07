@@ -1,0 +1,34 @@
+'use client';
+
+import { useEffect } from 'react';
+import posthog from 'posthog-js';
+import { usePathname } from 'next/navigation';
+
+export function AnalyticsProvider({ children }: { children: React.ReactNode }): JSX.Element {
+  const pathname = usePathname();
+
+  useEffect(() => {
+    // Initialize PostHog
+    if (typeof window !== 'undefined' && process.env.NEXT_PUBLIC_POSTHOG_KEY) {
+      posthog.init(process.env.NEXT_PUBLIC_POSTHOG_KEY, {
+        api_host: process.env.NEXT_PUBLIC_POSTHOG_HOST || 'https://app.posthog.com',
+        capture_pageview: false, // We'll handle this manually
+        capture_pageleave: true,
+        autocapture: false,
+        disable_session_recording: false,
+      });
+
+      // Make posthog available globally
+      window.posthog = posthog;
+    }
+  }, []);
+
+  useEffect(() => {
+    // Track page views
+    if (pathname && window.posthog) {
+      window.posthog.capture('$pageview', { path: pathname });
+    }
+  }, [pathname]);
+
+  return <>{children}</>;
+}

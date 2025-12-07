@@ -1,0 +1,243 @@
+'use client';
+
+import { useState } from 'react';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Rocket, Check, ExternalLink, Loader2 } from 'lucide-react';
+
+interface MemecoinLaunchModalProps {
+  open: boolean;
+  onClose: () => void;
+  userId: string;
+  paymentId: string;
+}
+
+interface LaunchResult {
+  tokenAddress: string;
+  launchId: string;
+  status: string;
+  explorerUrl: string;
+}
+
+export function MemecoinLaunchModal({ open, onClose, userId, paymentId }: MemecoinLaunchModalProps): JSX.Element {
+  const [name, setName] = useState<string>('');
+  const [ticker, setTicker] = useState<string>('');
+  const [description, setDescription] = useState<string>('');
+  const [imageUrl, setImageUrl] = useState<string>('');
+  const [initialLiquidity, setInitialLiquidity] = useState<string>('0.1');
+  const [loading, setLoading] = useState<boolean>(false);
+  const [result, setResult] = useState<LaunchResult | null>(null);
+
+  const handleLaunch = async (): Promise<void> => {
+    if (!name || !ticker || !description) {
+      alert('Please provide name, ticker, and description');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const response = await fetch('/api/memecoin/launch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId,
+          paymentId,
+          name,
+          ticker: ticker.toUpperCase(),
+          description,
+          imageUrl: imageUrl || undefined,
+          initialLiquidityEth: parseFloat(initialLiquidity) || 0.1,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setResult(data);
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Memecoin launch failed');
+      }
+    } catch (error) {
+      console.error('Memecoin launch error:', error);
+      alert('Launch failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="bg-gray-900 text-white border-purple-500/30 max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Launch Memecoin - Flaunch</DialogTitle>
+          <DialogDescription className="text-gray-400">
+            Deploy a real memecoin on Base blockchain
+          </DialogDescription>
+        </DialogHeader>
+
+        {!result ? (
+          <div className="space-y-4">
+            <div className="bg-blue-900/20 border border-blue-500/30 rounded-lg p-4">
+              <p className="text-blue-300 text-sm">
+                <strong>Note:</strong> This will deploy a real token contract on Base. Make sure your details are correct!
+              </p>
+            </div>
+
+            <div>
+              <Label htmlFor="name">Token Name *</Label>
+              <Input
+                id="name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g., Degen Coin"
+                className="bg-gray-800 border-gray-700"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="ticker">Token Ticker *</Label>
+              <Input
+                id="ticker"
+                value={ticker}
+                onChange={(e) => setTicker(e.target.value.toUpperCase())}
+                placeholder="e.g., DEGEN"
+                maxLength={10}
+                className="bg-gray-800 border-gray-700"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="description">Description *</Label>
+              <Textarea
+                id="description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Describe your memecoin..."
+                rows={4}
+                className="bg-gray-800 border-gray-700"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="imageUrl">Image URL (Optional)</Label>
+              <Input
+                id="imageUrl"
+                value={imageUrl}
+                onChange={(e) => setImageUrl(e.target.value)}
+                placeholder="https://example.com/image.png"
+                className="bg-gray-800 border-gray-700"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="liquidity">Initial Liquidity (ETH on Base)</Label>
+              <Input
+                id="liquidity"
+                type="number"
+                step="0.01"
+                min="0.01"
+                value={initialLiquidity}
+                onChange={(e) => setInitialLiquidity(e.target.value)}
+                placeholder="0.1"
+                className="bg-gray-800 border-gray-700"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Recommended: 0.1 - 1.0 ETH for initial liquidity
+              </p>
+            </div>
+
+            <Button
+              onClick={handleLaunch}
+              disabled={loading || !name || !ticker || !description}
+              className="w-full bg-purple-600 hover:bg-purple-700"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Launching on Base...
+                </>
+              ) : (
+                <>
+                  <Rocket className="w-4 h-4 mr-2" />
+                  Launch Memecoin
+                </>
+              )}
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="bg-green-900/20 border border-green-500/30 rounded-lg p-4">
+              <div className="flex items-center gap-2 text-green-400 mb-2">
+                <Check className="w-5 h-5" />
+                <span className="font-semibold">Memecoin Launched Successfully!</span>
+              </div>
+              <p className="text-gray-300 text-sm">
+                Your token is now live on Base blockchain
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <div className="bg-gray-800/50 rounded-lg p-4">
+                <Label className="text-sm text-gray-400">Token Address</Label>
+                <p className="text-white text-sm font-mono break-all mt-1">{result.tokenAddress}</p>
+              </div>
+
+              <div className="bg-gray-800/50 rounded-lg p-4">
+                <Label className="text-sm text-gray-400">Launch ID</Label>
+                <p className="text-white text-sm font-mono break-all mt-1">{result.launchId}</p>
+              </div>
+
+              <div className="bg-gray-800/50 rounded-lg p-4">
+                <Label className="text-sm text-gray-400">Status</Label>
+                <p className="text-white text-sm mt-1 capitalize">{result.status}</p>
+              </div>
+
+              <a
+                href={result.explorerUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block"
+              >
+                <Button className="w-full bg-blue-600 hover:bg-blue-700">
+                  View on BaseScan
+                  <ExternalLink className="w-4 h-4 ml-2" />
+                </Button>
+              </a>
+            </div>
+
+            <div className="bg-blue-900/20 border border-blue-500/30 rounded-lg p-4">
+              <p className="text-blue-300 text-sm">
+                <strong>Next Steps:</strong>
+              </p>
+              <ul className="text-blue-300 text-sm mt-2 space-y-1 list-disc list-inside">
+                <li>Share your token address on Farcaster</li>
+                <li>Add liquidity on Uniswap or other DEX</li>
+                <li>Create viral content to promote your coin</li>
+                <li>Join crypto communities and spread the word</li>
+              </ul>
+            </div>
+
+            <Button
+              onClick={() => {
+                setResult(null);
+                setName('');
+                setTicker('');
+                setDescription('');
+                setImageUrl('');
+                setInitialLiquidity('0.1');
+              }}
+              variant="outline"
+              className="w-full border-gray-700 hover:bg-gray-800"
+            >
+              Launch Another Token
+            </Button>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}

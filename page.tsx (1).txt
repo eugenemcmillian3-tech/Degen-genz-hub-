@@ -1,0 +1,435 @@
+'use client'
+import { useEffect, useState } from 'react';
+import { sdk } from '@farcaster/miniapp-sdk';
+import { useFarcasterAuth } from '@/hooks/use-farcaster-auth';
+import { FeatureCard } from '@/components/feature-card';
+import { PaymentModal } from '@/components/payment-modal';
+import { AIGeneratorModal } from '@/components/ai-generator-modal';
+import { NFTMintModal } from '@/components/nft-mint-modal';
+import { MemecoinLaunchModal } from '@/components/memecoin-launch-modal';
+import { MarketAnalysisModal } from '@/components/market-analysis-modal';
+import { TokenPriceModal } from '@/components/token-price-modal';
+import { XMTPChatModal } from '@/components/xmtp-chat-modal';
+import { LensPostModal } from '@/components/lens-post-modal';
+import { Button } from '@/components/ui/button';
+import { 
+  Coins, 
+  Image, 
+  TrendingUp, 
+  Trophy, 
+  Users,
+  Sparkles,
+  UserCircle,
+  Upload,
+  Rocket,
+  BarChart3,
+  DollarSign,
+  MessageCircle,
+  Share2,
+  Award,
+  Search,
+} from 'lucide-react';
+import { useAddMiniApp } from "@/hooks/useAddMiniApp";
+import { useQuickAuth } from "@/hooks/useQuickAuth";
+import { useIsInFarcaster } from "@/hooks/useIsInFarcaster";
+import Link from 'next/link';
+import { isUserWhitelisted, createWhitelistPaymentId } from '@/lib/whitelist';
+
+interface FeatureState {
+  type: string;
+  priceUsd: number;
+  showPayment: boolean;
+  paymentId: string | null;
+  modalType: 'ai' | 'nft' | 'launch' | 'market' | 'price' | 'chat' | 'lens' | null;
+}
+
+export default function Home(): JSX.Element {
+  const { user, loading, userId } = useFarcasterAuth();
+  const [featureState, setFeatureState] = useState<FeatureState>({
+    type: '',
+    priceUsd: 0,
+    showPayment: false,
+    paymentId: null,
+    modalType: null,
+  });
+  const [isWhitelisted, setIsWhitelisted] = useState<boolean>(false);
+
+  const { addMiniApp } = useAddMiniApp();
+  const isInFarcaster = useIsInFarcaster();
+  useQuickAuth(isInFarcaster);
+
+  useEffect(() => {
+    const tryAddMiniApp = async () => {
+      try {
+        await addMiniApp();
+      } catch (error) {
+        console.error('Failed to add mini app:', error);
+      }
+    };
+    tryAddMiniApp();
+  }, [addMiniApp]);
+
+  useEffect(() => {
+    const initSdk = async (): Promise<void> => {
+      try {
+        await sdk.actions.ready();
+      } catch (error) {
+        console.error('SDK initialization error:', error);
+      }
+    };
+    initSdk();
+  }, []);
+
+  // Check if user is whitelisted (supports both Farcaster FID and Base addresses)
+  useEffect(() => {
+    if (user) {
+      const whitelisted = isUserWhitelisted({
+        fid: user.fid,
+      });
+      setIsWhitelisted(whitelisted);
+      if (whitelisted) {
+        console.log('✅ Whitelisted user detected - free access enabled');
+      }
+    }
+  }, [user]);
+
+  const handleFeatureClick = (type: string, priceUsd: number, modalType: FeatureState['modalType']): void => {
+    if (!userId) {
+      alert('Please authenticate with Farcaster');
+      return;
+    }
+
+    // If whitelisted, skip payment and go directly to modal
+    if (isWhitelisted) {
+      const whitelistPaymentId = createWhitelistPaymentId(userId, type);
+      setFeatureState({ 
+        type, 
+        priceUsd, 
+        showPayment: false, 
+        paymentId: whitelistPaymentId,
+        modalType,
+      });
+      return;
+    }
+
+    // Otherwise show payment modal
+    setFeatureState({ type, priceUsd, showPayment: true, paymentId: null, modalType });
+  };
+
+  const handlePaymentComplete = (paymentId: string): void => {
+    setFeatureState((prev) => ({ ...prev, paymentId, showPayment: false }));
+  };
+
+  const closeModals = (): void => {
+    setFeatureState({
+      type: '',
+      priceUsd: 0,
+      showPayment: false,
+      paymentId: null,
+      modalType: null,
+    });
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-black flex items-center justify-center">
+        <div className="text-center">
+          <Sparkles className="w-12 h-12 text-purple-400 animate-pulse mx-auto mb-4" />
+          <p className="text-white text-lg">Loading DEGENZ HUB...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-black pt-16 pb-12 px-4">
+      <div className="max-w-7xl mx-auto">
+        <header className="text-center mb-12">
+          <h1 className="text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400 mb-4">
+            DEGENZ GEN/Z HUB
+          </h1>
+          <p className="text-gray-300 text-lg mb-6">
+            AI-Powered Memecoin, NFT & Viral Content Creation on Base
+          </p>
+          {user && (
+            <Link href="/profile">
+              <div className="inline-flex items-center gap-3 bg-purple-900/30 px-6 py-3 rounded-full border border-purple-500/30 hover:bg-purple-800/40 transition-colors cursor-pointer">
+                {user.pfpUrl && (
+                  <img src={user.pfpUrl} alt="Profile" className="w-8 h-8 rounded-full" />
+                )}
+                <span className="text-white font-semibold">
+                  {user.displayName || user.username || `FID ${user.fid}`}
+                </span>
+                {isWhitelisted && (
+                  <span className="text-xs bg-yellow-500/20 text-yellow-300 px-2 py-1 rounded-full border border-yellow-500/30">
+                    FREE ACCESS
+                  </span>
+                )}
+                <UserCircle className="w-5 h-5 text-purple-400" />
+              </div>
+            </Link>
+          )}
+        </header>
+
+        {/* AI Generation Features */}
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2">
+            <Sparkles className="w-6 h-6 text-purple-400" />
+            AI Content Generation
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <FeatureCard
+              icon={Coins}
+              title="Memecoin Quick"
+              description="Generate viral memecoin concepts with ticker, name, and 3 cast hooks"
+              priceRange="$0.75 - $1.50"
+              onClick={() => handleFeatureClick('memecoin_quick', 1.0, 'ai')}
+            />
+
+            <FeatureCard
+              icon={Coins}
+              title="Memecoin Full Pack"
+              description="Complete launch pack with lore, tokenomics, website copy, and CTAs"
+              priceRange="$3.00 - $5.00"
+              onClick={() => handleFeatureClick('memecoin_full', 4.0, 'ai')}
+            />
+
+            <FeatureCard
+              icon={Image}
+              title="NFT Collection Idea"
+              description="Create NFT collection concepts with traits, lore, and cast copy"
+              priceRange="$0.75 - $1.50"
+              onClick={() => handleFeatureClick('nft_idea', 1.0, 'ai')}
+            />
+
+            <FeatureCard
+              icon={Sparkles}
+              title="Meme Content Pack"
+              description="Get 5-10 viral Farcaster casts and Twitter captions"
+              priceRange="$1.00 - $3.00"
+              onClick={() => handleFeatureClick('meme_pack', 2.0, 'ai')}
+            />
+
+            <FeatureCard
+              icon={TrendingUp}
+              title="Viral Scout"
+              description="AI-powered research on trending topics with web scraping"
+              priceRange="$0.75 - $2.00"
+              onClick={() => handleFeatureClick('viral_scout', 1.5, 'ai')}
+            />
+
+            <FeatureCard
+              icon={Search}
+              title="AI Research"
+              description="Deep AI research with citations powered by Perplexity"
+              priceRange="$1.00 - $2.00"
+              onClick={() => handleFeatureClick('ai_research', 1.5, 'ai')}
+            />
+          </div>
+        </section>
+
+        {/* Blockchain Features */}
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2">
+            <Rocket className="w-6 h-6 text-purple-400" />
+            Blockchain & NFT Tools
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <FeatureCard
+              icon={Upload}
+              title="NFT Mint"
+              description="Upload to IPFS and get NFT-ready metadata with Pinata"
+              priceRange="$2.00 - $3.00"
+              onClick={() => handleFeatureClick('nft_mint', 2.5, 'nft')}
+            />
+
+            <FeatureCard
+              icon={Rocket}
+              title="Launch Memecoin"
+              description="Deploy real memecoins on Base blockchain via Flaunch"
+              priceRange="$3.00 - $5.00"
+              onClick={() => handleFeatureClick('memecoin_launch', 4.0, 'launch')}
+            />
+
+            <FeatureCard
+              icon={DollarSign}
+              title="Token Prices"
+              description="Get real-time token price quotes from 0x API"
+              priceRange="$0.75 - $1.00"
+              onClick={() => handleFeatureClick('token_price', 0.75, 'price')}
+            />
+
+            <FeatureCard
+              icon={BarChart3}
+              title="Market Analysis"
+              description="Prediction market data and insights from Adjacent News"
+              priceRange="$1.00 - $2.00"
+              onClick={() => handleFeatureClick('market_analysis', 1.5, 'market')}
+            />
+          </div>
+        </section>
+
+        {/* Social & Community Features */}
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2">
+            <Users className="w-6 h-6 text-purple-400" />
+            Social & Community
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <FeatureCard
+              icon={Share2}
+              title="Lens Post"
+              description="Publish onchain content to Lens Protocol social graph"
+              priceRange="$1.50 - $2.50"
+              onClick={() => handleFeatureClick('lens_post', 2.0, 'lens')}
+            />
+
+            <FeatureCard
+              icon={MessageCircle}
+              title="XMTP Chat"
+              description="Decentralized wallet-to-wallet messaging (Free)"
+              priceRange="Free"
+              onClick={() => handleFeatureClick('xmtp_chat', 0, 'chat')}
+            />
+
+            <FeatureCard
+              icon={Award}
+              title="Builder Rep"
+              description="Check onchain builder reputation via Talent Protocol"
+              priceRange="$0.75 - $1.50"
+              onClick={() => handleFeatureClick('builder_reputation', 1.0, 'ai')}
+            />
+
+            <Link href="/contests" className="block">
+              <FeatureCard
+                icon={Trophy}
+                title="Contests"
+                description="Host or join memecoin, meme, and NFT contests"
+                priceRange="$0.75 - $5.00"
+                onClick={() => {}}
+              />
+            </Link>
+          </div>
+        </section>
+
+        {/* Referrals Section */}
+        <Link href="/referrals" className="block mb-12">
+          <div className="bg-gradient-to-r from-purple-900/50 to-pink-900/50 border border-purple-500/30 rounded-lg p-6 hover:border-purple-500 transition-all cursor-pointer">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <Users className="w-12 h-12 text-purple-400" />
+                <div>
+                  <h3 className="text-2xl font-bold text-white mb-2">Referral Program</h3>
+                  <p className="text-gray-300">Earn 5-20% commission by referring other degens</p>
+                </div>
+              </div>
+              <Button className="bg-purple-600 hover:bg-purple-700 text-white">
+                View Dashboard
+              </Button>
+            </div>
+          </div>
+        </Link>
+
+        {/* How It Works */}
+        <div className="bg-gradient-to-r from-purple-900/50 to-pink-900/50 border border-purple-500/30 rounded-lg p-6 mb-8">
+          <h2 className="text-2xl font-bold text-white mb-4">How It Works</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-gray-300">
+            <div>
+              <div className="text-3xl font-bold text-purple-400 mb-2">1</div>
+              <p>Choose a feature and confirm the price</p>
+            </div>
+            <div>
+              <div className="text-3xl font-bold text-purple-400 mb-2">2</div>
+              <p>Pay using Base, Solana, or 6 other chains</p>
+            </div>
+            <div>
+              <div className="text-3xl font-bold text-purple-400 mb-2">3</div>
+              <p>AI generates your content instantly</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="text-center text-gray-400 text-sm">
+          <p>All features priced between $0.75 - $5.00 • Multi-chain support</p>
+          <p className="mt-2">Powered by OpenRouter AI • Built on Base</p>
+        </div>
+      </div>
+
+      {/* Payment Modal */}
+      {featureState.showPayment && userId && (
+        <PaymentModal
+          open={featureState.showPayment}
+          onClose={() => setFeatureState((prev) => ({ ...prev, showPayment: false }))}
+          featureType={featureState.type}
+          priceUsd={featureState.priceUsd}
+          userId={userId}
+          onPaymentComplete={handlePaymentComplete}
+        />
+      )}
+
+      {/* Feature Modals */}
+      {featureState.paymentId && userId && featureState.modalType === 'ai' && (
+        <AIGeneratorModal
+          open={!!featureState.paymentId}
+          onClose={closeModals}
+          featureType={featureState.type}
+          userId={userId}
+          paymentId={featureState.paymentId}
+        />
+      )}
+
+      {featureState.paymentId && userId && featureState.modalType === 'nft' && (
+        <NFTMintModal
+          open={!!featureState.paymentId}
+          onClose={closeModals}
+          userId={userId}
+          paymentId={featureState.paymentId}
+        />
+      )}
+
+      {featureState.paymentId && userId && featureState.modalType === 'launch' && (
+        <MemecoinLaunchModal
+          open={!!featureState.paymentId}
+          onClose={closeModals}
+          userId={userId}
+          paymentId={featureState.paymentId}
+        />
+      )}
+
+      {featureState.paymentId && userId && featureState.modalType === 'market' && (
+        <MarketAnalysisModal
+          open={!!featureState.paymentId}
+          onClose={closeModals}
+          userId={userId}
+          paymentId={featureState.paymentId}
+        />
+      )}
+
+      {featureState.paymentId && userId && featureState.modalType === 'price' && (
+        <TokenPriceModal
+          open={!!featureState.paymentId}
+          onClose={closeModals}
+          userId={userId}
+          paymentId={featureState.paymentId}
+        />
+      )}
+
+      {featureState.modalType === 'chat' && (
+        <XMTPChatModal
+          open={featureState.modalType === 'chat'}
+          onClose={closeModals}
+          userId={userId || ''}
+        />
+      )}
+
+      {featureState.paymentId && userId && featureState.modalType === 'lens' && (
+        <LensPostModal
+          open={!!featureState.paymentId}
+          onClose={closeModals}
+          userId={userId}
+          paymentId={featureState.paymentId}
+        />
+      )}
+    </div>
+  );
+}

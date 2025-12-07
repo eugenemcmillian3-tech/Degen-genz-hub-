@@ -1,0 +1,115 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { isBasePayAvailable, executeBasePay, usdToUsdc, type BasePayConfig } from '@/lib/base-pay';
+import { PAYMENT_WALLETS } from '@/lib/constants';
+
+interface BasePayButtonProps {
+  featureType: string;
+  priceUsd: number;
+  userId: string;
+  onPaymentComplete: (paymentId: string) => void;
+  disabled?: boolean;
+}
+
+export function BasePayButton({
+  featureType,
+  priceUsd,
+  userId,
+  onPaymentComplete,
+  disabled = false,
+}: BasePayButtonProps): JSX.Element {
+  const [available, setAvailable] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(false);
+
+  useEffect(() => {
+    // Check if Base Pay is available on mount
+    setAvailable(isBasePayAvailable());
+  }, []);
+
+  const handleBasePay = async (): Promise<void> => {
+    setLoading(true);
+    try {
+      // Configure payment
+      const config: BasePayConfig = {
+        amount: usdToUsdc(priceUsd),
+        currency: 'USDC',
+        recipientAddress: PAYMENT_WALLETS.EVM,
+        metadata: {
+          featureType,
+          userId,
+          priceUsd,
+        },
+      };
+
+      // Execute payment
+      const result = await executeBasePay(config);
+
+      if (result.success && result.transactionHash) {
+        // Log payment to backend
+        const response = await fetch('/api/payments/base-pay', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId,
+            txHash: result.transactionHash,
+            tokenSymbol: 'USDC',
+            amount: config.amount,
+            usdEquiv: priceUsd,
+            featureType,
+            chain: 'Base',
+          }),
+        });
+
+        if (response.ok) {
+          const { payment } = await response.json();
+          onPaymentComplete(payment.id);
+        } else {
+          throw new Error('Failed to log payment');
+        }
+      } else {
+        throw new Error(result.error || 'Payment failed');
+      }
+    } catch (error) {
+      console.error('Base Pay error:', error);
+      alert(error instanceof Error ? error.message : 'Payment failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Don't render if not available
+  if (!available) return <></>;
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <Badge variant="secondary" className="bg-blue-600 text-white">
+          Base Pay Available
+        </Badge>
+      </div>
+      <Button
+        onClick={handleBasePay}
+        disabled={loading || disabled}
+        className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+      >
+        {loading ? (
+          <>
+            <span className="animate-spin mr-2">⏳</span>
+            Processing...
+          </>
+        ) : (
+          <>
+            <span className="mr-2">💳</span>
+            Pay ${priceUsd.toFixed(2)} with Base Pay
+          </>
+        )}
+      </Button>
+      <p className="text-xs text-gray-400 text-center">
+        One-click payment with your Base Builder account
+      </p>
+    </div>
+  );
+}
